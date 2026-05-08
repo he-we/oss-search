@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>文件检索</title>
+<style>
+  :root {
+    --bg: #f5f4f0;
+    --surface: #ffffff;
+    --border: rgba(0,0,0,0.08);
+    --border-hover: rgba(0,0,0,0.18);
+    --text-primary: #1a1a18;
+    --text-secondary: #5a5a55;
+    --text-muted: #9a9a94;
+    --accent: #2a6eff;
+    --accent-bg: #eef3ff;
+    --tag-video-bg: #fff0e8; --tag-video-fg: #c45500;
+    --tag-pdf-bg: #ffe8e8;   --tag-pdf-fg: #c42020;
+    --tag-word-bg: #e8f0ff;  --tag-word-fg: #1a4eb8;
+    --tag-excel-bg: #e8f5e8; --tag-excel-fg: #1a7a2a;
+    --tag-ppt-bg: #fff4e0;   --tag-ppt-fg: #b86000;
+    --tag-archive-bg: #f0eaff; --tag-archive-fg: #6030b0;
+    --tag-code-bg: #e4f8f4;  --tag-code-fg: #0a7060;
+    --tag-image-bg: #fce8f4; --tag-image-fg: #a01870;
+    --tag-other-bg: #efefef; --tag-other-fg: #606060;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    min-height: 100vh;
+  }
+  .topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .topbar-title { font-size: 15px; font-weight: 600; }
+  .topbar-meta { font-size: 12px; color: var(--text-muted); }
+  .search-section {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 1.25rem 2rem 1rem;
+  }
+  .search-box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    max-width: 640px;
+  }
+  .search-box:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(42,110,255,0.1);
+  }
+  .search-icon { width: 18px; height: 18px; stroke: var(--text-muted); flex-shrink: 0; }
+  .search-box input {
+    border: none; outline: none;
+    background: transparent;
+    font-size: 14px;
+    color: var(--text-primary);
+    flex: 1;
+    font-family: inherit;
+  }
+  .search-box input::placeholder { color: var(--text-muted); }
+  .clear-btn {
+    cursor: pointer;
+    width: 18px; height: 18px;
+    stroke: var(--text-muted);
+    display: none;
+    flex-shrink: 0;
+  }
+  .clear-btn:hover { stroke: var(--text-primary); }
+  .filter-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 0.875rem;
+    align-items: center;
+  }
+  .filter-label { font-size: 12px; color: var(--text-muted); margin-right: 2px; }
+  .filter-chip {
+    font-size: 12px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.12s;
+    white-space: nowrap;
+  }
+  .filter-chip:hover { border-color: var(--border-hover); color: var(--text-primary); }
+  .filter-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 500; }
+  .main { max-width: 900px; margin: 0 auto; padding: 1.5rem 2rem 4rem; }
+  .result-meta { font-size: 13px; color: var(--text-muted); margin-bottom: 1rem; }
+  .file-list { display: flex; flex-direction: column; gap: 4px; }
+  .file-row {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    display: grid;
+    grid-template-columns: 24px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    transition: border-color 0.12s, box-shadow 0.12s;
+  }
+  .file-row:hover { border-color: var(--border-hover); box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+  .file-icon svg { width: 20px; height: 20px; display: block; }
+  .file-body { min-width: 0; }
+  .file-name {
+    font-size: 14px; font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .file-name mark { background: #fff3a8; color: inherit; border-radius: 2px; padding: 0 1px; }
+  .file-sub {
+    display: flex; align-items: center; gap: 6px;
+    margin-top: 3px; font-size: 12px; color: var(--text-muted); overflow: hidden;
+  }
+  .file-sub span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .type-tag {
+    font-size: 11px; font-weight: 500;
+    padding: 2px 8px; border-radius: 20px;
+    white-space: nowrap; flex-shrink: 0; align-self: center;
+  }
+  .empty { text-align: center; padding: 5rem 0; color: var(--text-muted); }
+  .empty svg { width: 40px; height: 40px; stroke: var(--text-muted); margin: 0 auto 12px; display: block; opacity: 0.5; }
+  .empty p { font-size: 14px; }
+  .loading { text-align: center; padding: 5rem 0; color: var(--text-muted); font-size: 14px; }
+  .error-box {
+    background: #fff5f5; border: 1px solid #ffc5c5;
+    border-radius: 10px; padding: 1.5rem; margin-top: 1rem;
+    font-size: 13px; color: #c42020; line-height: 1.7;
+  }
+  @media (max-width: 600px) {
+    .topbar { padding: 0 1rem; }
+    .search-section { padding: 1rem 1rem 0.875rem; }
+    .main { padding: 1rem 1rem 3rem; }
+    .file-row { grid-template-columns: 20px 1fr auto; gap: 8px; padding: 10px 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="topbar-title">📁 文件检索</span>
+  <span class="topbar-meta" id="topMeta">加载中…</span>
+</div>
+
+<div class="search-section">
+  <div class="search-box">
+    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input type="text" id="searchInput" placeholder="输入文件名关键词…" autocomplete="off" />
+    <svg class="clear-btn" id="clearBtn" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+    </svg>
+  </div>
+  <div class="filter-row">
+    <span class="filter-label">类型：</span>
+    <div id="typeFilters"></div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="result-meta" id="resultMeta"></div>
+  <div class="file-list" id="fileList"><div class="loading">正在加载文件清单…</div></div>
+</div>
+
+<script>
+const FILES_JSON_URL = "https://inventory-mech.oss-cn-shanghai.aliyuncs.com/search-tool/files.json";
+
+const TYPE_CONFIG = {
+  video:   { label: "视频",   bg: "var(--tag-video-bg)",   fg: "var(--tag-video-fg)",   icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#c45500" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polygon points="10,9 10,15 15,12" fill="#c45500" stroke="none"/></svg>' },
+  pdf:     { label: "PDF",    bg: "var(--tag-pdf-bg)",     fg: "var(--tag-pdf-fg)",     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#c42020" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>' },
+  word:    { label: "Word",   bg: "var(--tag-word-bg)",    fg: "var(--tag-word-fg)",    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#1a4eb8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>' },
+  excel:   { label: "Excel",  bg: "var(--tag-excel-bg)",   fg: "var(--tag-excel-fg)",   icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#1a7a2a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>' },
+  ppt:     { label: "PPT",    bg: "var(--tag-ppt-bg)",     fg: "var(--tag-ppt-fg)",     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#b86000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"/><line x1="8" y1="22" x2="16" y2="22"/><line x1="12" y1="18" x2="12" y2="22"/></svg>' },
+  archive: { label: "压缩包", bg: "var(--tag-archive-bg)", fg: "var(--tag-archive-fg)", icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#6030b0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>' },
+  code:    { label: "代码",   bg: "var(--tag-code-bg)",    fg: "var(--tag-code-fg)",    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#0a7060" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>' },
+  image:   { label: "图片",   bg: "var(--tag-image-bg)",   fg: "var(--tag-image-fg)",   icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#a01870" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>' },
+  other:   { label: "其他",   bg: "var(--tag-other-bg)",   fg: "var(--tag-other-fg)",   icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#606060" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' },
+};
+
+let allFiles = [], currentType = "全部", currentQuery = "";
+
+function esc(s) {
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+function highlight(text, q) {
+  if (!q) return esc(text);
+  var lower = text.toLowerCase(), lq = q.toLowerCase(), idx = lower.indexOf(lq);
+  if (idx < 0) return esc(text);
+  return esc(text.slice(0, idx)) + "<mark>" + esc(text.slice(idx, idx + q.length)) + "</mark>" + esc(text.slice(idx + q.length));
+}
+
+function render() {
+  var q = currentQuery.trim();
+  var filtered = allFiles.filter(function(f) {
+    return (currentType === "全部" || f.type === currentType) &&
+           (!q || f.name.toLowerCase().indexOf(q.toLowerCase()) >= 0);
+  });
+
+  document.getElementById("resultMeta").textContent =
+    (q || currentType !== "全部") ? ("找到 " + filtered.length + " 个文件") : ("共 " + allFiles.length + " 个文件");
+
+  var list = document.getElementById("fileList");
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg><p>没有找到匹配的文件</p></div>';
+    return;
+  }
+
+  list.innerHTML = filtered.map(function(f) {
+    var cfg = TYPE_CONFIG[f.type] || TYPE_CONFIG.other;
+    return '<div class="file-row">' +
+      '<div class="file-icon">' + cfg.icon + '</div>' +
+      '<div class="file-body">' +
+        '<div class="file-name">' + highlight(f.name, q) + '</div>' +
+        '<div class="file-sub">' +
+          '<svg style="width:12px;height:12px;stroke:var(--text-muted);flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>' +
+          '<span>' + esc(f.folder) + '</span>' +
+          '<span>·</span><span>' + f.size + '</span>' +
+          '<span>·</span><span>' + f.date + '</span>' +
+        '</div>' +
+      '</div>' +
+      '<span class="type-tag" style="background:' + cfg.bg + ';color:' + cfg.fg + '">' + cfg.label + '</span>' +
+    '</div>';
+  }).join("");
+}
+
+function buildFilters() {
+  var types = ["全部"].concat(Object.keys(TYPE_CONFIG).filter(function(t) {
+    return allFiles.some(function(f) { return f.type === t; });
+  }));
+  var container = document.getElementById("typeFilters");
+  container.innerHTML = "";
+  types.forEach(function(t) {
+    var btn = document.createElement("button");
+    btn.className = "filter-chip" + (t === currentType ? " active" : "");
+    btn.textContent = t === "全部" ? "全部" : (TYPE_CONFIG[t] ? TYPE_CONFIG[t].label : t);
+    btn.onclick = function() {
+      currentType = t;
+      document.querySelectorAll(".filter-chip").forEach(function(b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      render();
+    };
+    container.appendChild(btn);
+  });
+}
+
+async function loadFiles() {
+  try {
+    var res = await fetch(FILES_JSON_URL);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    var data = await res.json();
+    allFiles = data.files || [];
+    document.getElementById("topMeta").textContent = data.updated ? ("清单更新于 " + data.updated) : ("共 " + allFiles.length + " 个文件");
+    buildFilters();
+    render();
+  } catch(err) {
+    document.getElementById("fileList").innerHTML =
+      '<div class="error-box"><strong>加载失败</strong><br>请检查：<br>1. files.json 是否已上传到 OSS<br>2. 该文件访问权限是否为"公共读"<br>3. FILES_JSON_URL 地址是否正确<br><br>错误：' + esc(err.message) + '</div>';
+    document.getElementById("topMeta").textContent = "加载失败";
+  }
+}
+
+var searchInput = document.getElementById("searchInput");
+var clearBtn = document.getElementById("clearBtn");
+searchInput.addEventListener("input", function() {
+  currentQuery = searchInput.value;
+  clearBtn.style.display = currentQuery ? "block" : "none";
+  render();
+});
+clearBtn.addEventListener("click", function() {
+  searchInput.value = "";
+  currentQuery = "";
+  clearBtn.style.display = "none";
+  searchInput.focus();
+  render();
+});
+
+loadFiles();
+</script>
+</body>
+</html>
