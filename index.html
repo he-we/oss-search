@@ -90,7 +90,7 @@
     margin-top: 0.875rem;
     align-items: center;
   }
-  .filter-label { font-size: 12px; color: var(--text-muted); margin-right: 2px; }
+  .filter-label { font-size: 12px; color: var(--text-muted); margin-right: 2px; flex-shrink: 0; }
   .filter-chip {
     font-size: 12px;
     padding: 4px 12px;
@@ -105,6 +105,21 @@
   }
   .filter-chip:hover { border-color: var(--border-hover); color: var(--text-primary); }
   .filter-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 500; }
+  .folder-select {
+    font-size: 12px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: inherit;
+    cursor: pointer;
+    max-width: 360px;
+    outline: none;
+    transition: border-color 0.12s;
+  }
+  .folder-select:hover { border-color: var(--border-hover); }
+  .folder-select:focus { border-color: var(--accent); }
   .main { max-width: 900px; margin: 0 auto; padding: 1.5rem 2rem 4rem; }
   .result-meta { font-size: 13px; color: var(--text-muted); margin-bottom: 1rem; }
   .file-list { display: flex; flex-direction: column; gap: 4px; }
@@ -133,6 +148,7 @@
     margin-top: 3px; font-size: 12px; color: var(--text-muted); overflow: hidden;
   }
   .file-sub span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .folder-highlight mark { background: #fff3a8; color: inherit; border-radius: 2px; padding: 0 1px; }
   .file-url {
     display: flex; align-items: center; gap: 8px;
     margin-top: 6px;
@@ -198,6 +214,12 @@
     <span class="filter-label">类型：</span>
     <div id="typeFilters"></div>
   </div>
+  <div class="filter-row" style="margin-top:8px;">
+    <span class="filter-label">文件夹：</span>
+    <select id="folderSelect" class="folder-select">
+      <option value="">全部文件夹</option>
+    </select>
+  </div>
 </div>
 
 <div class="main">
@@ -220,11 +242,12 @@ const TYPE_CONFIG = {
   other:   { label: "其他",   bg: "var(--tag-other-bg)",   fg: "var(--tag-other-fg)",   icon: '<svg viewBox="0 0 24 24" fill="none" stroke="#606060" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' },
 };
 
-let allFiles = [], currentType = "全部", currentQuery = "";
+let allFiles = [], currentType = "全部", currentQuery = "", currentFolder = "";
 
 function esc(s) {
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
+
 function highlight(text, q) {
   if (!q) return esc(text);
   var lower = text.toLowerCase(), lq = q.toLowerCase(), idx = lower.indexOf(lq);
@@ -247,12 +270,12 @@ function render() {
   var q = currentQuery.trim();
   var filtered = allFiles.filter(function(f) {
     return (currentType === "全部" || f.type === currentType) &&
-           (!q || f.name.toLowerCase().indexOf(q.toLowerCase()) >= 0
-                || f.folder.toLowerCase().indexOf(q.toLowerCase()) >= 0);
-});
+           (!currentFolder || f.folder === currentFolder) &&
+           (!q || f.name.toLowerCase().indexOf(q.toLowerCase()) >= 0);
+  });
 
   document.getElementById("resultMeta").textContent =
-    (q || currentType !== "全部") ? ("找到 " + filtered.length + " 个文件") : ("共 " + allFiles.length + " 个文件");
+    (q || currentType !== "全部" || currentFolder) ? ("找到 " + filtered.length + " 个文件") : ("共 " + allFiles.length + " 个文件");
 
   var list = document.getElementById("fileList");
   if (filtered.length === 0) {
@@ -269,7 +292,7 @@ function render() {
         '<div class="file-name">' + highlight(f.name, q) + '</div>' +
         '<div class="file-sub">' +
           '<svg style="width:12px;height:12px;stroke:var(--text-muted);flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>' +
-          '<span>' + esc(f.folder) + '</span>' +
+          '<span class="folder-highlight">' + highlight(f.folder, q) + '</span>' +
           '<span>·</span><span>' + f.size + '</span>' +
           '<span>·</span><span>' + f.date + '</span>' +
         '</div>' +
@@ -303,6 +326,21 @@ function buildFilters() {
   });
 }
 
+function buildFolderSelect() {
+  var select = document.getElementById("folderSelect");
+  var folders = Array.from(new Set(allFiles.map(function(f) { return f.folder; }))).sort();
+  folders.forEach(function(folder) {
+    var opt = document.createElement("option");
+    opt.value = folder;
+    opt.textContent = folder;
+    select.appendChild(opt);
+  });
+  select.addEventListener("change", function() {
+    currentFolder = select.value;
+    render();
+  });
+}
+
 async function loadFiles() {
   try {
     var res = await fetch(FILES_JSON_URL);
@@ -311,6 +349,7 @@ async function loadFiles() {
     allFiles = data.files || [];
     document.getElementById("topMeta").textContent = data.updated ? ("清单更新于 " + data.updated) : ("共 " + allFiles.length + " 个文件");
     buildFilters();
+    buildFolderSelect();
     render();
   } catch(err) {
     document.getElementById("fileList").innerHTML =
