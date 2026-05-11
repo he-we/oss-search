@@ -247,8 +247,9 @@ function render() {
   var q = currentQuery.trim();
   var filtered = allFiles.filter(function(f) {
     return (currentType === "全部" || f.type === currentType) &&
-           (!q || f.name.toLowerCase().indexOf(q.toLowerCase()) >= 0);
-  });
+           (!q || f.name.toLowerCase().indexOf(q.toLowerCase()) >= 0
+                || f.folder.toLowerCase().indexOf(q.toLowerCase()) >= 0);
+});
 
   document.getElementById("resultMeta").textContent =
     (q || currentType !== "全部") ? ("找到 " + filtered.length + " 个文件") : ("共 " + allFiles.length + " 个文件");
